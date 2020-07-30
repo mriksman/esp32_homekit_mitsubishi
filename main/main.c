@@ -87,7 +87,7 @@ uint8_t get_data(uint8_t *send_data, uint8_t *recv_data)
 
     // all uart_read_bytes have a 1 second timeout. apparently mitsubishi don't like 
     //  requests faster than this. this works well with the polling method.
-    uint8_t len = uart_read_bytes(UART_NUM_2, recv_data, UART_BUF_SIZE, pdMS_TO_TICKS(5000));
+    uint8_t len = uart_read_bytes(UART_NUM_2, recv_data, UART_BUF_SIZE, pdMS_TO_TICKS(2000));
 
     ESP_LOG_BUFFER_HEXDUMP(TAG, recv_data, len, ESP_LOG_INFO);
 
@@ -369,15 +369,13 @@ ESP_LOGW(TAG, "get current settings");
 
             // *** fan recv_data[11] ***
             float rotation_val = 0.0;
-            bool rotation_val_valid = true;
+            uint8_t fan_mode_val = 0x00;
+            bool map_val_valid = true;
 
             fan_map = recv_data[11];
             if (fan_map == FAN_AUTO) {                         // AUTO
-                rotation_val_valid = false;
-                if (fan_mode->value.int_value != 1) {
-                    fan_mode->value = HOMEKIT_UINT8(1);
-                    homekit_characteristic_notify(fan_mode, fan_mode->value);
-                }
+                //rotation_val_valid = false;
+                fan_mode_val = 0x01;
             }
             else if (fan_map == FAN_QUIET)  {                    // QUIET
                 rotation_val = 20.0;
@@ -395,12 +393,15 @@ ESP_LOGW(TAG, "get current settings");
                 rotation_val = 100.0;
              }
             else {
-                rotation_val_valid = false;
+                map_val_valid = false;
                 ESP_LOGE(TAG, "unknown fan mode %d", fan_map);
             }   
 
-            // setting the ROTATION SPEED will automatically set TARGET_FAN_STATE to disabled
-            if (rotation_val_valid && rotation_speed->value.float_value != rotation_val) {
+            if (map_val_valid && fan_mode->value.int_value != fan_mode_val) {
+                fan_mode->value = HOMEKIT_UINT8(fan_mode_val);
+                homekit_characteristic_notify(fan_mode, fan_mode->value);
+            }
+            if (map_val_valid && rotation_speed->value.float_value != rotation_val) {
                 rotation_speed->value = HOMEKIT_FLOAT(rotation_val);
                 homekit_characteristic_notify(rotation_speed, rotation_speed->value);
             }
